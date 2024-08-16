@@ -3,20 +3,18 @@ import time
 class Turbina():
     def __init__(self) -> None:
         self.Valvula = 0.0
-        self.motorAux = False
         self.junta = False
         self.Q1 = False
         self.Q2 = False
         self.QE = False
-        self.modoControl = False
-        self.freno = False
+        self.motorAux = False
+        self.freno = 0.0
         self.RPM = 0.0
         self.friccion = 20.0
         
         self.aporteMotor = 0.0
         self.aporteQuemadores = 0.0
         self.anteriores = []
-
 
     def update(self):
         if self.motorAux and self.junta:
@@ -29,9 +27,14 @@ class Turbina():
 
         self.RPM += self.aporteMotor + self.aporteQuemadores - self.friccion
 
+        if self.freno > 0.0:
+            self.RPM -= self.freno
+
         self.RPM -= self.friccion
+
         if self.RPM <= 0.0:
             self.RPM = 0.0
+        
 
     def PID(self,input, Man_Auto = False, SetpointMan = 0.0, SetpointAuto = 0.0):
             """
@@ -68,7 +71,7 @@ class Turbina():
                 self.error_accu = E_accu
                 
                 kP = 2.0
-                kI = 0.00001
+                kI = 0.0001
                 kD = 0.05
 
                 #La acción proporcional es el error multiplicado por una constante
@@ -101,22 +104,20 @@ class Turbina():
 TUR = Turbina()
 estado = 1
 
-
-
 try:
     while True:
-        TUR.junta = True
-        time.sleep(1.0)
-        TUR.motorAux = True
-        TUR.update()
+        if estado == 1:
+            TUR.junta = True
+            #time.sleep(2.0)
+            TUR.motorAux = True
+            TUR.update()
+            if TUR.RPM >= 478.0:
+                estado += 1
         print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
-        time.sleep(0.5)
-        if TUR.RPM > 478.0 and TUR.RPM < 600.0:
-            estado += 1
         if estado == 2:
             TUR.Q1 = True
             TUR.Q2 = True
-            time.sleep(1.0)
+            time.sleep(2.0)
             TUR.Valvula = 10.0
             TUR.update()
             print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
@@ -127,25 +128,25 @@ try:
             print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
             TUR.update()
             if TUR.RPM > 2750.0:
-                TUR.junta = False
-                time.sleep(1.0)
                 TUR.motorAux = False
+                time.sleep(3.0)
+                TUR.junta = False
                 estado += 1
-                print(f"Junta: {TUR.junta}, Motor: {TUR.motorAux}")
         elif estado == 4:
-            TUR.modoControl = True
-            TUR.PID(input=TUR.RPM, Man_Auto=False, SetpointAuto=4600.0)
+            TUR.PID(input=TUR.RPM, Man_Auto = False, SetpointAuto=4600.0)
             TUR.update()    
-            print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
-            print(f"Junta: {TUR.junta}, Motor: {TUR.motorAux}")
-            time.sleep(0.5)
+            if TUR.RPM == 4600.0:
+                estado += 1
+                TUR.PID(input=TUR.RPM, Man_Auto = True, SetpointMan=10.0)
+        elif estado == 5:
+            TUR.Valvula = 0.0
+            time.sleep(0.2)
+            TUR.Q1 = False
+            TUR.Q2 = False
+            if TUR.RPM <=2500.0:
+                TUR.freno = 100.0
+            TUR.update()
 
         time.sleep(0.1)
-    #Esta es la linea de codigo que setea el Lazo PID, aca usar un "if velocidad > 1750: el Man_Auto = False y SetpointAuto = 4600.0 RPMs"
-        #TUR.PID(input=TUR.RPM, Man_Auto=False, SetpointAuto=3000.0)
-        #TUR.update()
-
-        #print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}")
-        #time.sleep(0.1)
 except KeyboardInterrupt:
     print("Simulación finalizada")
