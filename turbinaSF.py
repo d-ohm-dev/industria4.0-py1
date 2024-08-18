@@ -1,4 +1,5 @@
 import time
+import threading
 
 class Turbina():
     def __init__(self) -> None:
@@ -31,8 +32,9 @@ class Turbina():
 
         self.RPM += self.aporteMotor + self.aporteQuemadores - self.friccion
 
-        self.temperatura += 1.0
-
+        self.temperatura += 10.0
+        
+        
         if self.freno > 0.0:
             self.RPM -= self.freno
 
@@ -46,6 +48,8 @@ class Turbina():
         if self.RPM <= 0.0:
             self.RPM = 0.0
         
+        self.autoPID = threading.Event()
+        self.autoPID.set()
 
     def PID(self,input, Man_Auto = False, SetpointMan = 0.0, SetpointAuto = 0.0):
             """
@@ -114,6 +118,20 @@ class Turbina():
 
 TUR = Turbina()
 estado = 1
+#while TUR.autoPID.is_set():
+    #hiloTemp = threading.Thread(
+        #target = TUR.PID,
+        #args = (TUR.temperatura, True, 0.0, 300.0),
+        #daemon=True
+    #)
+#while TUR.autoPID.is_set():
+    #hiloPresion = threading.Thread(
+        #target = TUR.PID,
+        #args = (TUR.presionGas, True, 0.0, 4.5),
+        #daemon=True
+    #)
+    ##hiloPresion.start()
+    #hiloTemp.start()
 
 try:
     while True:
@@ -121,7 +139,6 @@ try:
             TUR.junta = True
             #time.sleep(2.0)
             TUR.motorAux = True
-            TUR.update()
             if TUR.RPM >= 478.0:
                 estado += 1
         elif estado == 2:
@@ -129,12 +146,10 @@ try:
             TUR.Q2 = True
             time.sleep(2.0)
             TUR.aporteGas = 10.0
-            TUR.update()
             if TUR.Q1 and TUR.Q2:
                 estado += 1
         elif estado == 3:
             TUR.aporteGas = 25.0
-            TUR.update()
             if TUR.RPM > 2750.0:
                 TUR.motorAux = False
                 time.sleep(3.0)
@@ -142,10 +157,9 @@ try:
                 estado += 1
         elif estado == 4:
             TUR.PID(input=TUR.RPM, Man_Auto = False, SetpointAuto=4600.0)
-            TUR.update()    
             if TUR.RPM == 4600.0:
                 estado += 1
-                TUR.PID(input=TUR.RPM, Man_Auto = True, SetpointMan=10.0)
+                TUR.PID(input=TUR.Valvula, Man_Auto = True, SetpointMan=10.0)
         elif estado == 5:
             TUR.aporteGas = 0.0
             time.sleep(0.2)
@@ -153,13 +167,15 @@ try:
             TUR.Q2 = False
             if TUR.RPM <=2500.0:
                 TUR.freno = 100.0
-            TUR.update()
         
         if TUR.RPM > 5500.0 or TUR.presionGas > 5.5 or TUR.temperatura > 350.0:
             TUR.frenoEmergencia = True
-            print(f"RPM: {TUR.RPM:.2f}, Presion: {TUR.presionGas:.2f}, Temp: {TUR.temperatura:.2f}")
-
+            TUR.Valvula = 0.0
+            estado = "Frenado de Emergencia"
+        TUR.update()
+        print(f"Presion: {TUR.presionGas:.2f}, Temp: {TUR.temperatura:.2f}")
         print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
         time.sleep(0.1)
 except KeyboardInterrupt:
     print("Simulación finalizada")
+    #TUR.autoPID.clear()
