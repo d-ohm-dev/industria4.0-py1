@@ -49,9 +49,17 @@ class Turbina():
         if self.Q1 and self.Q2 and self.RPM > 478.0: 
             self.aporteQ = self.Valvula 
             self.presionGas += 0.09
+        elif self.Q1 == 0 and self.Q2 == 0:
+            self.aporteQ = 0.0
+            self.presionGas -= 0.09
+        
+        if self.presionGas < 0.0:
+            self.presionGas = 0.0
 
+    # Ecuación para actualizar el aporte de aceleración y desaceleración de la turbina
         self.RPM += self.aporteMotor + self.aporteQ - self.friccion
 
+    # La temperatura aumenta con el tiempo mientras la turbina este activa
         self.temperatura += 1.0
         
         
