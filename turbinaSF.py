@@ -37,13 +37,14 @@ class Turbina():
 
     def update(self):
         
-
         self.autoPID.set()
+
     # Si la junta neumática esta en True y el motor auxiliar esta encendido, el aporte de aceleración es 100, de lo contrario se restablece a cero. 
         if self.motorAux and self.junta:
             self.aporteMotor = 100.0
         else:
             self.aporteMotor = 0.0
+
     # Si ambos quemadores estan encendidos y la velocidad es mayor a 478, el aporte de aceleración sera proporcional a la apertura de la Válvula
     # Se agrega la variable glas acá de forma provisoria para implementar la secuencia del freno de emergencia
         if self.Q1 and self.Q2 and self.RPM > 478.0: 
@@ -51,33 +52,31 @@ class Turbina():
             self.presionGas += 0.09
         elif self.Q1 == 0 and self.Q2 == 0:
             self.aporteQ = 0.0
-            self.presionGas -= 0.09
+            self.presionGas -= 0.03
         
-        if self.presionGas < 0.0:
-            self.presionGas = 0.0
 
     # Ecuación para actualizar el aporte de aceleración y desaceleración de la turbina
         self.RPM += self.aporteMotor + self.aporteQ - self.friccion
 
+    # Las RPM siempre tienen en contra el factor de fricción
+        self.RPM -= self.friccion
     # La temperatura aumenta con el tiempo mientras la turbina este activa
         self.temperatura += 1.0
         
-        
+    # Secuencia de freno manual
         if self.freno > 0.0:
             self.RPM -= self.freno
+            self.temperatura -= 1.0
 
-        self.RPM -= self.friccion
-
+    # Secuencia de freno de emergencia
         if self.frenoEmergencia:
             self.Valvula = 0.0
             self.QE = True
             self.freno = 100.0
             
-        if self.RPM <= 0.0:
-            self.RPM = 0.0
-    
-    # desactivar esta sección si se logra hacer funcionar el lazo PID con la regulación de la temeperatura y la presion, por ahora se
-    # agregan estas condicionales para evitar que se active el freno de emergencia por estas dos condiciones
+        """ desactivar esta sección si se logra hacer funcionar el lazo PID con la regulación de la temeperatura y la presion, por ahora se
+        agregan estas condicionales para evitar que se active el freno de emergencia.
+        """
         if self.presionGas >= 5.5:
             self.presionGas = 5.5
         if self.temperatura >= 350.0:
@@ -94,6 +93,17 @@ class Turbina():
                 self.frenoEmergencia = True
                 self.Valvula = 0.0
 
+    # Igualamos todos los valores que puedan ser negativos a cero
+        if self.RPM <= 0.0:
+            self.RPM = 0.0
+        
+        if self.presionGas < 0.0:
+            self.presionGas = 0.0
+
+        if self.temperatura < 0.0:
+            self.temperatura = 0.0
+
+    #Implementamos un método con el lazo PID
     def PID(self,input, Man_Auto = False, SetpointMan = 0.0, SetpointAuto = 0.0):
             """
                 Calcula la salida de un controlador PID (Proporcional, Integral, Derivativo).
@@ -159,18 +169,24 @@ class Turbina():
                 # Si estamos en modo "Manual", la válvula se pone en la posición que definimos en el setpoint.
                 self.Valvula = SetpointMan
 
+# Instanciamos nuestro objeto turbina
 TUR = Turbina()
+
+# Variable para control de estados
 estado = 1
 TUR.update()
+
+# Iniciamos los hilos (A corregir)
 if TUR.autoPID.is_set():
     TUR.hiloTemp.start()
     TUR.hiloPresion.start()
 
+# Bicle de prueba
 try:
     while True:
         if estado == 1:
             TUR.junta = True
-            #time.sleep(2.0)
+            time.sleep(0.1)
             TUR.motorAux = True
             if TUR.RPM >= 478.0:
                 estado += 1
@@ -178,31 +194,33 @@ try:
             TUR.Q1 = True
             TUR.Q2 = True
             time.sleep(2.0)
-            TUR.Valvula = 10.0
+            TUR.PID(input= TUR.Valvula, Man_Auto= True, SetpointMan= 10.0)
             if TUR.Q1 and TUR.Q2:
                 estado += 1
         elif estado == 3:
-            TUR.Valvula = 25.0
+            TUR.PID(input= TUR.Valvula, Man_Auto= True, SetpointMan= 25.0)
             if TUR.RPM > 2750.0:
-                TUR.motorAux = False
-                time.sleep(3.0)
                 TUR.junta = False
+                time.sleep(5.0)
+                TUR.motorAux = False
                 estado += 1
         elif estado == 4:
             TUR.PID(input=TUR.RPM, Man_Auto = False, SetpointAuto=4600.0)
-
-        if estado == 5:
-            TUR.PID(input=TUR.Valvula, Man_Auto = True, SetpointMan=10.0)
-            time.sleep(0.2)
-            TUR.Valvula = 0.0
+        # Condición arbitraria para probar el freno manual
+            if TUR.RPM == 4600.0:
+                estado += 1
+                TUR.PID(input=TUR.Valvula, Man_Auto = True, SetpointMan=10.0)
+    # Este estado 5 equivale a frenado manual
+        elif estado == 5:
+            time.sleep(10.0)
+            TUR.PID(input=TUR.Valvula, Man_Auto = True, SetpointMan=0.0)
             TUR.Q1 = False
             TUR.Q2 = False
             if TUR.RPM <=2500.0:
                 TUR.freno = 100.0
+                estado = "Frenado manual"
 
-        if TUR.freno == True:
-            estado = "Frenado manual"
-
+    # Se implementa la secuencia de frenado de emergencia
         if TUR.frenoEmergencia == True:
             estado = "Frenado de Emergencia"
 
