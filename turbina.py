@@ -113,7 +113,7 @@ try:
             TUR.update()
             if TUR.RPM >= 478.0:
                 estado += 1
-        print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
+        #print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
         if estado == 2:
             TUR.Q1 = True
             TUR.Q2 = True
@@ -137,7 +137,7 @@ try:
             TUR.update()    
             if TUR.RPM == 4600.0:
                 estado += 1
-                TUR.PID(input=TUR.RPM, Man_Auto = True, SetpointMan=10.0)
+                TUR.PID(input=TUR.Valvula, Man_Auto = True, SetpointMan=10.0)
         elif estado == 5:
             TUR.Valvula = 0.0
             time.sleep(0.2)
@@ -147,6 +147,7 @@ try:
                 TUR.freno = 100.0
             TUR.update()
 
+        print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
         time.sleep(0.1)
 except KeyboardInterrupt:
     print("Simulación finalizada")
