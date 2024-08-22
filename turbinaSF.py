@@ -1,6 +1,7 @@
 import time
 import threading
 
+# Todos los valores de tiempo de la consigna fueron divididos entre 10 arbitrariamente para darle mas rapidez a las pruebas.
 class Turbina():
     def __init__(self) -> None:
         self.junta = False
@@ -50,10 +51,9 @@ class Turbina():
 
         # Si ambos quemadores estan encendidos y la velocidad es mayor a 478, 
         # el aporte de aceleración sera proporcional a la apertura de la Válvula
-        # Se agrega la variable glas acá de forma provisoria para implementar la secuencia del freno de emergencia
         if self.Q1 and self.Q2 and self.RPM > 478.0: 
             self.aporteQ = self.Valvula 
-            self.presionGas += 0.07 # mantenerlo en 0.07 si se quiere la secuencia de freno manual 
+            self.presionGas += 0.07 # mantenerlo en 0.07 si se quiere la secuencia de freno manual, otro valor activa freno de emergencia 
 
         # Ecuación para actualizar el aporte de aceleración y desaceleración de la turbina
         self.RPM += self.aporteMotor + self.aporteQ - self.friccion
@@ -67,7 +67,7 @@ class Turbina():
         # Secuencia de freno manual
 
         if not self.Q1 and not self.Q2 and self.aporteMotor == 0.0 and self.aporteQ == 0.0:
-            self.RPM -= 300
+            self.RPM -= 260.0 # valor arbitrario para probar secuencia de freno manual, por debajo de 260 rpm se activa el freno de emergencia
             self.temperatura -= 2.0
             self.presionGas -= 0.5
             if  self.freno > 0.0:
@@ -90,8 +90,8 @@ class Turbina():
             self.QE = True
 
         if self.RPM > 4000.0:
+            time.sleep(3.0)
             if self.presionGas < 3.3:
-                time.sleep(3.0)
                 self.frenoEmergencia = True
         
         if self.frenoEmergencia:
@@ -183,7 +183,6 @@ TUR = Turbina()
 
 # Variable para control de estados
 estado = 1
-TUR.update()
 
 # Iniciamos los hilos (A corregir)
 #if TUR.autoPID.is_set():
@@ -195,7 +194,7 @@ try:
     while True:
         if estado == 1:
             TUR.junta = True
-            time.sleep(0.1)
+            time.sleep(0.5)
             TUR.motorAux = True
             TUR.update()
             if TUR.RPM >= 478.0:
@@ -203,7 +202,7 @@ try:
         elif estado == 2:
             TUR.Q1 = True
             TUR.Q2 = True
-            time.sleep(2.0)
+            time.sleep(0.2)
             TUR.PID(input= TUR.Valvula, Man_Auto= True, SetpointMan= 10.0)
             TUR.update()
             if TUR.Q1 and TUR.Q2:
@@ -213,7 +212,7 @@ try:
             TUR.update()
             if TUR.RPM > 2750.0:
                 TUR.junta = False
-                time.sleep(5.0)
+                time.sleep(0.5)
                 TUR.motorAux = False
                 estado += 1
         elif estado == 4:
@@ -225,7 +224,7 @@ try:
         # Este estado 5 equivale a frenado manual
         elif estado == 5:
             TUR.PID(input=TUR.Valvula, Man_Auto = True, SetpointMan=10.0)
-            time.sleep(0.2)
+            time.sleep(1.0)
             TUR.PID(input=TUR.Valvula, Man_Auto = True, SetpointMan=0.0)
             TUR.Q1 = False
             TUR.Q2 = False
@@ -238,7 +237,6 @@ try:
             TUR.update()
             estado = "Frenado de Emergencia"
 
-        #TUR.update()
         print(f"Presion: {TUR.presionGas:.2f}, Temp: {TUR.temperatura:.2f}, Freno: {TUR.freno:.2f}")
         print(f"VEL: {TUR.RPM:.2f}, VALV: {TUR.Valvula:.2f}, Estado {estado}")
         #print(f"autoPID: {TUR.autoPID.is_set()}, hiloPresion: {TUR.hiloPresion.is_alive()}, hiloTemp: {TUR.hiloTemp.is_alive()}")
